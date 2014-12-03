@@ -1,0 +1,380 @@
+\documentclass{scrartcl} % KOMA-Script article
+\usepackage{amsmath}
+
+% current annoyance: this will be fixed
+% by the next update of agda.fmt
+\def\textmu{}
+
+\newcommand{\RR}{\mathbb{R}}
+
+%include agda.fmt
+\title{An Introduction to Dependent Types and Agda}
+\author{Andreas Abel}
+\date{18 June 2009}
+
+\begin{document}
+\maketitle
+
+\section{Types}
+
+Types in programming languages serve several purposes:
+\begin{enumerate}
+\item Find runtime-errors at compile-time.
+\item Enable compiler optimizations.
+\item Allow the programmer to express some of his intention about the
+  code.
+\item Provide a machine-checked documenation.
+\end{enumerate}
+Strongly typed languages include JAVA and Haskell.  Dependent types
+allow the programmer to add even more redundant information about his
+code which leads to detection logical errors or full program
+verification.
+
+\subsection{What is a dependent type?}
+
+Dependent types mean that types can refer to values, not just to other
+types.  From the mathematics, uses of dependent types are familiar.
+For instance, in linear algebra we define the type of vectors $\RR^n$
+of length $n$ by
+\[
+\begin{array}{lll}
+  \RR^n = \underbrace{\RR \times \dots \times \RR}_{n \mbox{ times}}
+\end{array}
+\]
+and the inner product of two vectors of length $n$ receives type
+$\RR^n \times \RR^n \to \RR$.  This type is dependent on the value
+$n$.  Its purpose is to make clear that the inner product is not
+defined on two arbitrary vectors of reals, but only of those of the
+same length.  Most strongly typed programming languages do not support
+dependent types.  Haskell has a rich type system that can simulate
+dependent types to some extent \cite{mcBride:fakingIt}.
+
+Dependently typed languages include Agda, Coq, Omega, ATS (replacing
+DML).  Cayenne is no longer supported. 
+
+\section{Core Features of Agda}
+
+In the following, we give a short introduction into dependent types
+using the language Agda.  Agda is similar to Haskell in many aspects,
+in particular, \emph{indentation matters}!
+
+\begin{code}
+module DepTypes where  
+\end{code}
+
+\subsection{Dependent Function Type}
+
+As opposed to ordinary function types |A -> B|, 
+dependent function types |(x : A) -> B| allow to give a name, |x|, to
+the domain |A| of the function space.  The name |x| can be
+subsequently used in the codomain |B| to refer to the particular value
+|x| of type |A| that has been passed to the function.
+Using a dependent function type, we can specify the |inner| product
+function as follows:
+\begin{spec}
+inner : (n : Nat) -> Vect Nat n -> Vect Nat n -> Nat
+\end{spec}
+Herein |Vect Nat n| denotes the type of vectors of natural numbers of
+length |n|, which we will define later.  An application |inner 5 v w|
+is only well-typed if |v| and |w| both have length |5|.
+
+\subsection{Inductive Types}
+
+As in Haskell, we can declare new data types by giving their
+constructors.  Only the new |data| syntax of Haskell is supported by
+Agda:
+\begin{code}
+data Nat : Set where
+  zero : Nat
+  suc  : Nat -> Nat  
+\end{code}
+This means that we introduce a new type, a |Set| in Agda terminology,
+with a nullary constructor |zero| and a unary, recursive constructor
+|suc|.  Thus, natural numbers are possibly empty
+sequences of |suc| terminated by a |zero|, which is a unary
+presentation of natural numbers, as opposed to a binary representation.
+
+Polymorphic data types, \emph{parametric} data types in proper
+terminology, can be defined by providing a sequence of variable
+declarations just after the name of the data type.  For example,
+polymorphic lists have one parameter |A : Set|, which is the list
+element type.  All the parameter names are in scope in the constructor
+declarations. 
+\begin{code}
+data [_] (A : Set) : Set where
+  []   : [ A ]
+  _::_ : A -> [ A ] -> [ A ] 
+\end{code}
+Agda supports pre-, post-, in-, and mixfix identifiers.  Here, we
+have declared the type |[ A ]| of lists over |A| as mixfix identifier,
+the constructor |[]| for empty lists is an ordinary identifier but
+made up of special symbols, the constructor |_::_| is infix, to be
+used in the form |x :: xs|.
+
+\subsection{Inductive Families}
+
+Vectors are lists over a certain element type |A| of a certain length
+|n|.  While the \emph{parameter} |A| remains fixed for the whole list, the
+\emph{index} |n| varies for each sublist.  Indexed inductive types are
+called inductive families and declared like
+\begin{spec}
+data Vect (A : Set) : Nat -> Set where
+  vnil  : Vect A zero
+  vcons : (n : Nat) -> A -> Vect A n -> Vect A (suc n) 
+\end{spec}
+Note that |Vect| itself is of type |Set -> Nat -> Set| and |Vect A| is
+of type |Nat -> Set|.
+
+\subsection{Recursive Definitions and Pattern Matching}
+
+In order to define the inner product of two vectors of natural
+numbers, we define addition and multiplication for natural numbers first.
+\begin{code}
+infix 2 _+_ 
+infix 3 _*_
+
+_+_ : Nat -> Nat -> Nat
+n + zero  = n
+n + suc m = suc (n + m)
+
+_*_ : Nat -> Nat -> Nat
+n * zero = zero
+n * (suc m) = n * m + n
+\end{code}
+Both are defined by recursion and case distinction over the second
+argument. 
+
+Our first attempt to define the inner product is:
+\begin{spec}
+inner : (n : Nat) -> Vect Nat n -> Vect Nat n -> Nat
+inner zero vnil vnil = zero
+inner (suc n) (vcons n x xs) (vcons n y ys) =
+  x * y + inner n xs ys
+-- FAILS
+\end{spec}
+However this fails.  The second clause for |inner| violates the
+\emph{linearity condition}.  The variable |n| is mentioned thrice in
+the patterns on the left hand side.  Each variable can however only be
+bound once.  What we meant to express is that whatever the values of
+the three occurrences of |n| are, because of the type of |inner| we
+know they are equal.  This can be expressed properly using Agda's
+\emph{dot patterns}.
+\begin{spec}
+inner : (n : Nat) -> Vect Nat n -> Vect Nat n -> Nat
+inner zero vnil vnil = zero
+inner (suc .n) (vcons .n x xs) (vcons n y ys) =
+  x * y + inner n xs ys
+\end{spec}
+There is now only one binding occurrence of |n|,  the other two
+occurrences have been dotted.  A dot can be followed by \emph{any}
+expression, it does not have to be a variable as in our case.  What
+|.n| it means is: \emph{whatever stands here, do not match against it,
+  for I know it is equal to |n|}.
+
+
+\subsection{Omitted and Hidden Arguments}
+
+A special expression is the hole |_| which stands for any
+expression we do not care about.  Agda's unification procedure tries
+to find the correct expressions which fit into the holes for us.  For
+instance we can leave the administration of the vector length to Agda,
+since it is inferable from the constructors |vnil| and |vcons|.
+\begin{spec}
+inner : (n : Nat) -> Vect Nat n -> Vect Nat n -> Nat
+inner ._ vnil vnil = zero
+inner ._ (vcons ._ x xs) (vcons _ y ys) =
+  x * y + inner _ xs ys
+\end{spec}
+We can even hide things we do not care about completely.  The hidden
+dependent function space |{x : A} -> B| contains functions whose 
+argument is declared as hidden, i.e., it is not written by default,
+but one can supply it enclosed in braces.  It is convenient to hide
+the length annotations in vectors so that they look like lists.
+\begin{code}
+data Vect (A : Set) : Nat -> Set where
+  vnil  : Vect A zero
+  vcons : {n : Nat} -> A -> Vect A n -> Vect A (suc n) 
+
+inner : {n : Nat} -> Vect Nat n -> Vect Nat n -> Nat
+inner vnil vnil = zero
+inner (vcons x xs) (vcons y ys) = x * y + inner xs ys  
+\end{code}
+Internally, the last definition of |inner| is read as:
+\begin{spec}
+inner : {n : Nat} -> Vect Nat n -> Vect Nat n -> Nat
+inner {_} vnil vnil = zero
+inner {_} (vcons {._} x xs) (vcons {._} y ys) = x * y + inner {_} xs ys  
+\end{spec}
+
+Can we really not fool the type checker?  Let us test it.
+\begin{code}
+one = suc zero
+two = suc one
+
+v1 = vcons one vnil
+v2 = vcons zero v1  
+\end{code}
+Now the following program is rejected by the type checker:
+\begin{spec}
+foo = inner v1 v2
+\end{spec}
+
+
+\section{Some Library Functions for Vectors}
+
+In the following, we gain some more experiences with Agda by playing
+around with vectors.  Let us try concatenation of vectors first.
+\begin{spec}
+append : {A : Set}{n m : Nat} ->
+         Vect A n -> Vect A m -> Vect A (n + m)
+append vnil ys = ys
+append (vcons x xs) ys = vcons x (append xs ys)   
+\end{spec}
+This code is rejected by Agda with the error message |.m != zero + .m
+of type Nat| pointing at the right hand side of the first clause.
+What is going on here?  Since |vnil : Vect A n| the type checker
+infers |n = zero|, thus it expects the right hand side |ys| to be of type
+|Vect A (zero + m)|.  It has type |Vect A m|, and zero plus something
+is something, so where is the problem?  The problem is that we know
+knowledge about addition that Agda does not have.  By definition, Agda
+knows that |m + zero = m|, but it does not know that addition is
+commutative.\footnote{Agda is dumb as a chicken!}  Flipping the sum
+solves our problem: 
+\begin{code}
+append : {A : Set}{n m : Nat} ->
+         Vect A n -> Vect A m -> Vect A (m + n)
+append vnil ys = ys
+append (vcons x xs) ys = vcons x (append xs ys)  
+\end{code}
+We got away this time, but in other cases we might have to teach Agda
+that addition is commutative!
+
+A nice application of vectors is that looking up the element at a
+certain index can be made safe statically.  I.e., we can define a
+lookup function |_!!_| that only accept indices that are below the
+length of the vector.  The trick is done using finite sets:
+\begin{code}
+data Fin : Nat -> Set where
+  fzero : {n : Nat} -> Fin (suc n)
+  fsuc  : {n : Nat} -> Fin n -> Fin (suc n)  
+\end{code}
+The finite set |Fin n| contains exactly |n| elements.  In particular,
+|Fin 0| is empty, and |Fin (suc n)| contains the elements |fzero|,
+|fsuc fzero|, \dots, |fsuc|$^{n-1}$ |fzero|.
+
+Using |Fin|, we construct the following total lookup function
+\begin{code}
+_!!_ : {A : Set}{n : Nat} -> Vect A n -> Fin n -> A
+vnil !! ()
+vcons x xs !! fzero  = x
+vcons x xs !! fsuc m = xs !! m  
+\end{code}
+The first clause uses the absurd pattern |()|.  If the vector is
+|vnil|, then |n = 0| and |Fin n| is empty, so there is no match for
+the index.  Of course, no right hand side has to be given in this case.
+
+Again, we cannot fool the type checker:
+\begin{spec}
+foo = vnil !! fzero  
+-- FAILS
+\end{spec}
+
+
+\section{Sorted Lists and Logic in Agda}
+
+Let us introduce booleans and comparison of naturals:
+\begin{code}
+data Bool : Set where
+  true  : Bool
+  false : Bool
+
+if_then_else_ : {A : Set} -> Bool -> A -> A -> A 
+if true  then b1 else b2 = b1
+if false then b1 else b2 = b2
+
+_≤_ : Nat -> Nat -> Bool
+zero    ≤ n       = true
+(suc m) ≤ zero    = false
+(suc m) ≤ (suc n) = m ≤ n
+\end{code}
+An idea to implement a type of descendingly sorted lists of natural
+numbers is to index the list type by a lower bound for the next
+element which can be prepended.
+\begin{spec}
+data SList : Nat -> Set where
+  snil : SList zero
+  scons : {n : Nat}(m : Nat) -> (n ≤ m) -> SList n -> SList m 
+\end{spec}
+The empty list is indexed by |zero| so any natural number can be
+prepended without violating sorting.  The list |scons {n} m _ l| is
+only sorted if |n ≤ m|.  The placeholder needs to be filled with some
+evidence for this fact, or in mathematical terms we need to provide a
+proof that can be checked by Agda!
+
+\subsection{The Curry Howard Isomorphism}
+
+TO BE CONTINUED!
+
+\begin{code}
+Proposition = Set
+
+data _&_ (A B : Proposition) : Proposition where
+  _,_ : A -> B -> A & B
+
+fst : {A B : Proposition} -> A & B -> A
+fst (a , b) = a
+
+_×_ = _&_
+
+data _||_ (A B : Proposition) : Proposition where
+  inl : A -> A || B
+  inr : B -> A || B
+
+data Truth : Proposition where
+  tt : Truth
+
+data Absurd : Proposition where
+
+lemma : {A : Proposition} -> A -> A & Truth
+lemma a = (a , tt)
+
+comm& : {A B : Proposition} -> A & B -> B & A
+comm& (a , b) = (b , a)
+
+True : Bool -> Proposition
+True true  = Truth
+True false = Absurd
+
+refl≤ : (n : Nat) -> True (n ≤ n)
+refl≤ zero    = tt
+refl≤ (suc n) = refl≤ n
+
+bla : (n : Nat) -> True (one ≤ zero)
+bla n = bla (suc n)
+
+foo : True (one ≤ zero)
+-- foo = bla zero
+foo = foo
+
+A : Bool -> Proposition
+A true = Truth
+A false = True (one ≤ zero)
+
+{- 
+prf : (b : Bool) -> A b
+prf true = tt
+
+bar : True (one ≤ zero)
+bar = prf false
+-}
+
+data SList : Nat -> Set where
+  snil : SList zero
+  scons : {n : Nat}(m : Nat) -> True (n ≤ m) -> SList n -> SList m 
+
+slist1 = scons one tt (scons zero tt snil)
+slist2 = scons zero {! !} (scons one tt snil)  
+\end{code}
+
+
+\end{document}
