@@ -6,8 +6,13 @@ open import Function
 open import Doc
 
 
+
 DocString = record { Doc = List Char
-                     ; <> = ++
+                     ; <> = (λ ds1 ds2 ->  ds1 ++ ds2)
                      ; nil = []
-                     ; nest  i s = s
-                     ; layout x = x  }
+                     ; text =  id
+                     ; line = [ '\n']
+                     ; nest = (λ i s -> ' ' ∷ s)
+                     ; layout = (λ x -> x) }
+
+

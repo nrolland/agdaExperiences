@@ -5,7 +5,6 @@ open import Data.Char
 open import Data.Nat
 open import Function
 
-{-# BUILTIN INTEGER ℕ #-}
 
 record Docs : Set₁ where
   field
