@@ -76,10 +76,8 @@ open import Data.List
 open ≡-Reasoning
 ++-assoc : ∀ {a} {A : Set a} (xs ys zs : List A) → (xs ++ ys) ++ zs ≡ xs ++ (ys ++ zs)
 ++-assoc [] ys zs =  begin
-                     ([] ++ ys) ++ zs
-                     ≡⟨ refl ⟩
-                     ys ++ zs
-                     ≡⟨ refl ⟩
+                     ([] ++ ys) ++ zs                   ≡⟨ refl ⟩
+                     ys ++ zs                           ≡⟨ refl ⟩
                      [] ++ (ys ++ zs)
                      ∎
 ++-assoc (x ∷ xs) ys zs = begin
