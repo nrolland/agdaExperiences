@@ -925,9 +925,9 @@ Obfuscating the function above gives:
   filterN p (a ∷ as) | true  with as
   filterN p (a ∷ as) | true | [] = a ∷ []
   filterN p (a ∷ as) | true | b ∷ bs with p b
-  filterN p (a ∷ as) | true | b ∷ bs | true  = a ∷ (b ∷ filterN p bs)
-  filterN p (a ∷ as) | true | b ∷ bs | false = a ∷ filterN p bs
-  filterN p (a ∷ as) | false = filterN p as
+  filterN p (a ∷ as) | true | b ∷ bs | true  = ? -- a ∷ (b ∷ filterN p bs)
+  filterN p (a ∷ as) | true | b ∷ bs | false = ? -- a ∷ filterN p bs
+  filterN p (a ∷ as) | false = ? -- filterN p as
   -- or alternatively
   filterP : {A : Set} → (A → Bool) → List A → List A
   filterP p [] = []
@@ -1108,10 +1108,12 @@ It allows to generate the library by a simple shell command:
     ' | sed '/^ *module ThrowAway/,/^ *.- end of ThrowAway/ d;'
 
 We are now going to redefine everything useful from above in a universe polymorphic way (when applicable), starting with `Level`s:
-\begin{code}
+--\begin{code}
 module Level where
   -- Universe levels
   postulate Level : Set
+  {-# BUILTIN LEVEL     Level #-}
+
   postulate lzero : Level
   postulate lsucc : Level → Level
   -- input for ⊔ is \sqcup
@@ -1120,11 +1122,10 @@ module Level where
   infixl 5 _⊔_
   
   -- Make them work
-  {-# BUILTIN LEVEL     Level #-}
   {-# BUILTIN LEVELZERO lzero #-}
   {-# BUILTIN LEVELSUC  lsucc #-}
   {-# BUILTIN LEVELMAX  _⊔_   #-}
-\end{code}
+--\end{code}
 
 Each module in Agda has an export list.
 Everything defined in a module gets appended to it.
@@ -1135,7 +1136,8 @@ open ModuleName
 This doesn't append `ModuleName`'s export list to current module's export list.
 To do that we need to add `public` keyword at the end:
 \begin{code}
-open Level public
+--open Level public
+open import Agda.Primitive
 \end{code}
 
 ### Common functions with types not for the faint of heart
